@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - CRUD & Escáner QR</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        body { background-color: #0f172a; color: #e2e8f0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .neon-text { text-shadow: 0 0 10px rgba(56, 189, 248, 0.5); }
+        .neon-border:focus { border-color: #38bdf8; box-shadow: 0 0 10px rgba(56, 189, 248, 0.5); outline: none; }
+        .hidden { display: none !important; }
+        #reader video { border-radius: 0.5rem; }
+    </style>
+</head>
+<body class="min-h-screen p-6">
+
+    <div id="loginSection" class="max-w-md mx-auto mt-20 glass p-8 rounded-xl shadow-2xl">
+        <h2 class="text-3xl font-bold text-center text-sky-400 neon-text mb-6">Acceso Admin</h2>
+        <div class="space-y-4">
+            <input type="text" id="user" class="w-full p-3 rounded bg-slate-800 border border-slate-700 neon-border text-white" placeholder="Usuario (yadira)">
+            <input type="password" id="pass" class="w-full p-3 rounded bg-slate-800 border border-slate-700 neon-border text-white" placeholder="Contraseña (yord123)">
+            <button onclick="login()" class="w-full py-3 bg-sky-500 hover:bg-sky-400 text-slate-900 font-bold rounded shadow-[0_0_15px_rgba(56,189,248,0.5)] transition-all">Ingresar</button>
+            <p id="loginError" class="text-red-400 text-sm text-center hidden">Credenciales incorrectas</p>
+        </div>
+    </div>
+
+    <div id="adminPanel" class="max-w-7xl mx-auto hidden">
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-3xl font-bold text-sky-400 neon-text">Dashboard CRUD & Escáner</h1>
+            <button onclick="logout()" class="px-4 py-2 bg-red-500/20 text-red-400 border border-red-500/50 rounded hover:bg-red-500/40 transition">Cerrar Sesión</button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="glass p-6 rounded-xl h-fit">
+                <h3 class="text-xl font-bold text-emerald-400 mb-4 border-b border-slate-700 pb-2">Crear Nueva Entrada</h3>
+                <div class="space-y-3">
+                    <input type="text" id="clienteDocumento" placeholder="DNI / Documento (Único)" class="w-full p-2 rounded bg-slate-800 border border-slate-700 neon-border">
+                    <input type="text" id="clienteNombre" placeholder="Nombre completo del Cliente" class="w-full p-2 rounded bg-slate-800 border border-slate-700 neon-border">
+                    <input type="email" id="clienteEmail" placeholder="Correo Electrónico" class="w-full p-2 rounded bg-slate-800 border border-slate-700 neon-border">
+                    <button onclick="crearEntrada()" class="w-full py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-bold rounded shadow-[0_0_15px_rgba(16,185,129,0.4)] transition-all">Generar QR Único</button>
+                </div>
+            </div>
+
+            <div class="glass p-6 rounded-xl relative">
+                <h3 class="text-xl font-bold text-purple-400 mb-4 border-b border-slate-700 pb-2">Escáner de Validación en Puerta</h3>
+                <div id="reader" class="w-full bg-black rounded overflow-hidden mb-3 border border-slate-700"></div>
+                <button onclick="iniciarEscaner()" class="w-full py-2 bg-purple-500 hover:bg-purple-400 text-white font-bold rounded shadow-[0_0_15px_rgba(168,85,247,0.4)] transition-all">Encender Cámara</button>
+                
+                <div id="scanResult" class="mt-4 p-4 rounded hidden text-center font-bold flex flex-col items-center gap-3">
+                    <div id="scanMensaje"></div>
+                    <img id="scanFoto" src="" class="w-32 h-32 object-cover rounded border-2 hidden">
+                </div>
+            </div>
+        </div>
+
+        <div class="glass p-6 rounded-xl mt-6">
+            <h3 class="text-xl font-bold text-sky-400 mb-4">Gestión de Entradas (CRUD)</h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse min-w-[800px]">
+                    <thead>
+                        <tr class="border-b border-slate-700 text-slate-400 bg-slate-800/50">
+                            <th class="p-3">Código QR</th>
+                            <th class="p-3">DNI</th>
+                            <th class="p-3">Cliente</th>
+                            <th class="p-3">Estado</th>
+                            <th class="p-3 text-center">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="listaEntradas"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalEditar" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+        <div class="glass p-6 rounded-xl max-w-sm w-full relative">
+            <h3 class="text-xl font-bold text-sky-400 mb-4 border-b border-slate-700 pb-2">Editar Entrada</h3>
+            <input type="hidden" id="editIndex">
+            <div class="space-y-3">
+                <label class="block text-sm text-slate-400">DNI/Documento</label>
+                <input type="text" id="editDoc" class="w-full p-2 rounded bg-slate-800 border border-slate-700 text-white">
+                <label class="block text-sm text-slate-400">Nombre</label>
+                <input type="text" id="editNombre" class="w-full p-2 rounded bg-slate-800 border border-slate-700 text-white">
+                <label class="block text-sm text-slate-400">Correo</label>
+                <input type="text" id="editEmail" class="w-full p-2 rounded bg-slate-800 border border-slate-700 text-white">
+                <label class="block text-sm text-slate-400">Estado</label>
+                <select id="editEstado" class="w-full p-2 rounded bg-slate-800 border border-slate-700 text-white">
+                    <option value="Valido">Válido</option>
+                    <option value="Usado">Usado</option>
+                </select>
+                <div class="flex gap-2 mt-4">
+                    <button onclick="guardarEdicion()" class="flex-1 py-2 bg-sky-500 text-slate-900 font-bold rounded hover:bg-sky-400">Guardar</button>
+                    <button onclick="cerrarModalEditar()" class="flex-1 py-2 bg-slate-600 text-white font-bold rounded hover:bg-slate-500">Cancelar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalFoto" class="hidden fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4">
+        <div class="glass p-6 rounded-xl max-w-sm w-full relative text-center">
+            <button onclick="cerrarModalFoto()" class="absolute -top-3 -right-3 bg-red-500 text-white rounded-full w-8 h-8 font-bold border-2 border-slate-900">X</button>
+            <h3 class="text-lg font-bold text-sky-400 mb-3" id="modalNombreFoto"></h3>
+            <img id="modalImagen" src="" class="w-full rounded border border-slate-600 mb-2">
+            <p id="modalFechaFoto" class="text-xs text-slate-400 font-mono"></p>
+        </div>
+    </div>
+
+    <script>
+        let db = JSON.parse(localStorage.getItem('sys_qr_db')) || { entradas: [] };
+        const guardarDB = () => localStorage.setItem('sys_qr_db', JSON.stringify(db));
+
+        function login() {
+            if (document.getElementById('user').value === 'yadira' && document.getElementById('pass').value === 'yord123') {
+                document.getElementById('loginSection').classList.add('hidden');
+                document.getElementById('adminPanel').classList.remove('hidden');
+                leerEntradas();
+            } else {
+                document.getElementById('loginError').classList.remove('hidden');
+            }
+        }
+        function logout() { location.reload(); }
+
+        function crearEntrada() {
+            const documento = document.getElementById('clienteDocumento').value.trim();
+            const nombre = document.getElementById('clienteNombre').value.trim();
+            const email = document.getElementById('clienteEmail').value.trim();
+            
+            if (!documento || !nombre || !email) return alert("Completa todos los campos.");
+            if(db.entradas.some(e => e.documento === documento)) return alert("Error: Ya existe una entrada registrada con ese DNI/Documento.");
+
+            const codigo = `TCK-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+            
+            db.entradas.push({ codigo, documento, nombre, email, estado: 'Valido', foto_ingreso: null, fecha_ingreso: null });
+            guardarDB();
+            
+            document.getElementById('clienteDocumento').value = '';
+            document.getElementById('clienteNombre').value = '';
+            document.getElementById('clienteEmail').value = '';
+            leerEntradas();
+        }
+
+        function leerEntradas() {
+            const tbody = document.getElementById('listaEntradas');
+            tbody.innerHTML = '';
+            db.entradas.forEach((ent, i) => {
+                const colorEst = ent.estado === 'Valido' ? 'text-emerald-400' : 'text-red-400';
+                const btnFoto = ent.foto_ingreso ? `<button onclick="verFoto(${i})" class="text-xs bg-purple-500/20 text-purple-400 px-2 py-1 rounded border border-purple-500/50 hover:bg-purple-500/40">📷 Foto</button>` : '';
+
+                tbody.innerHTML += `
+                    <tr class="border-b border-slate-700/50 hover:bg-slate-800/30">
+                        <td class="p-3 font-mono text-sm text-sky-300">${ent.codigo}</td>
+                        <td class="p-3 font-bold">${ent.documento}</td>
+                        <td class="p-3">${ent.nombre} <br><span class="text-xs text-slate-400">${ent.email}</span></td>
+                        <td class="p-3 font-bold ${colorEst}">${ent.estado}</td>
+                        <td class="p-3 text-center flex justify-center gap-2">
+                            ${btnFoto}
+                            <button onclick="abrirModalEditar(${i})" class="text-xs bg-sky-500/20 text-sky-400 px-2 py-1 rounded border border-sky-500/50 hover:bg-sky-500/40">✏️ Editar</button>
+                            <button onclick="eliminarEntrada(${i})" class="text-xs bg-red-500/20 text-red-400 px-2 py-1 rounded border border-red-500/50 hover:bg-red-500/40">🗑️ Borrar</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function abrirModalEditar(index) {
+            const ent = db.entradas[index];
+            document.getElementById('editIndex').value = index;
+            document.getElementById('editDoc').value = ent.documento;
+            document.getElementById('editNombre').value = ent.nombre;
+            document.getElementById('editEmail').value = ent.email;
+            document.getElementById('editEstado').value = ent.estado;
+            document.getElementById('modalEditar').classList.remove('hidden');
+        }
+
+        function guardarEdicion() {
+            const index = document.getElementById('editIndex').value;
+            db.entradas[index].documento = document.getElementById('editDoc').value;
+            db.entradas[index].nombre = document.getElementById('editNombre').value;
+            db.entradas[index].email = document.getElementById('editEmail').value;
+            db.entradas[index].estado = document.getElementById('editEstado').value;
+            
+            if (db.entradas[index].estado === 'Valido') {
+                db.entradas[index].foto_ingreso = null;
+                db.entradas[index].fecha_ingreso = null;
+            }
+
+            guardarDB();
+            cerrarModalEditar();
+            leerEntradas();
+        }
+        function cerrarModalEditar() { document.getElementById('modalEditar').classList.add('hidden'); }
+
+        function eliminarEntrada(index) {
+            if(confirm(`¿Estás seguro de eliminar la entrada de ${db.entradas[index].nombre}? Esta acción no se puede deshacer.`)) {
+                db.entradas.splice(index, 1);
+                guardarDB();
+                leerEntradas();
+            }
+        }
+
+        function capturarFotograma() {
+            const video = document.querySelector('#reader video');
+            if (!video) return null;
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+            return canvas.toDataURL('image/jpeg', 0.8);
+        }
+
+        let scanner;
+        function iniciarEscaner() {
+            if (scanner) return;
+            scanner = new Html5Qrcode("reader");
+            scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, onScanSuccess, () => {});
+        }
+
+        function onScanSuccess(codigoEscaneado) {
+            const foto = capturarFotograma();
+            scanner.pause(true);
+            
+            const rDiv = document.getElementById('scanResult');
+            const rMsg = document.getElementById('scanMensaje');
+            const rImg = document.getElementById('scanFoto');
+            
+            rDiv.classList.remove('hidden', 'bg-emerald-900/50', 'bg-red-900/50', 'bg-yellow-900/50');
+            rImg.classList.add('hidden');
+            rImg.src = foto || '';
+
+            const index = db.entradas.findIndex(e => e.codigo === codigoEscaneado);
+            
+            if (index === -1) {
+                rDiv.classList.add('bg-red-900/50');
+                rMsg.innerHTML = `<span class="text-red-400">❌ QR INVÁLIDO O FALSO</span><br><span class="text-sm font-normal text-white">No existe en la base de datos.</span>`;
+            } else {
+                const ent = db.entradas[index];
+                if (ent.estado === 'Usado') {
+                    rDiv.classList.add('bg-yellow-900/50');
+                    rMsg.innerHTML = `<span class="text-yellow-400">⚠️ YA FUE ESCANEADO</span><br><span class="text-sm font-normal text-white">${ent.nombre} (DNI: ${ent.documento}) ya ingresó.</span>`;
+                } else {
+                    db.entradas[index].estado = 'Usado';
+                    db.entradas[index].foto_ingreso = foto;
+                    db.entradas[index].fecha_ingreso = new Date().toLocaleString();
+                    guardarDB(); leerEntradas();
+
+                    rDiv.classList.add('bg-emerald-900/50');
+                    rMsg.innerHTML = `<span class="text-emerald-400">✅ INGRESO VÁLIDO</span><br><span class="text-sm font-normal text-white">${ent.nombre} - DNI: ${ent.documento}</span>`;
+                    if (foto) { rImg.classList.remove('hidden'); rImg.classList.add('border-emerald-500'); }
+                }
+            }
+            setTimeout(() => { scanner.resume(); rDiv.classList.add('hidden'); }, 3500);
+        }
+
+        function verFoto(i) {
+            document.getElementById('modalNombreFoto').textContent = db.entradas[i].nombre;
+            document.getElementById('modalImagen').src = db.entradas[i].foto_ingreso;
+            document.getElementById('modalFechaFoto').textContent = db.entradas[i].fecha_ingreso;
+            document.getElementById('modalFoto').classList.remove('hidden');
+        }
+        function cerrarModalFoto() { document.getElementById('modalFoto').classList.add('hidden'); }
+    </script>
+</body>
+</html>

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal Cliente - Mi Entrada QR</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        body { background-color: #0f172a; color: #e2e8f0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .neon-text { text-shadow: 0 0 10px rgba(56, 189, 248, 0.5); }
+        .neon-border:focus { border-color: #38bdf8; box-shadow: 0 0 10px rgba(56, 189, 248, 0.5); outline: none; }
+        .hidden { display: none !important; }
+        #qrDisplay img { margin: 0 auto; padding: 15px; background: white; border-radius: 12px; border: 4px solid #38bdf8; }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <div class="max-w-md w-full glass p-8 rounded-xl shadow-2xl text-center">
+        <h1 class="text-3xl font-bold text-sky-400 neon-text mb-2">Tu Boleto Digital</h1>
+        <p class="text-slate-400 text-sm mb-6">Ingresa tu DNI o Correo Electrónico para ver tu código QR de acceso.</p>
+
+        <div id="searchSection" class="space-y-4">
+            <input type="text" id="datoBusqueda" class="w-full p-3 rounded bg-slate-800 border border-slate-700 neon-border text-center text-white" placeholder="DNI o Correo">
+            <button onclick="buscarEntrada()" class="w-full py-3 bg-sky-500 hover:bg-sky-400 text-slate-900 font-bold rounded shadow-[0_0_15px_rgba(56,189,248,0.5)] transition-all">Mostrar mi QR</button>
+            <p id="errorMsg" class="text-red-400 text-sm hidden bg-red-900/30 p-2 rounded">No se encontró una entrada pagada con esos datos.</p>
+        </div>
+
+        <div id="ticketSection" class="hidden mt-4 bg-slate-800/80 p-6 rounded-xl border border-slate-700 shadow-lg">
+            <div class="border-b border-slate-600 pb-3 mb-4">
+                <h2 class="text-2xl font-bold text-white uppercase" id="lblNombre"></h2>
+                <p class="text-slate-300">DNI: <span id="lblDocumento" class="font-bold text-sky-400"></span></p>
+            </div>
+            
+            <div id="qrDisplay" class="flex justify-center mb-4"></div>
+            
+            <p class="text-slate-400 font-mono text-xs mb-2">CÓDIGO ÚNICO: <br><span id="lblCodigo" class="text-sky-300 text-sm"></span></p>
+            <p id="lblEstado" class="font-bold text-lg mb-4 py-2 rounded"></p>
+            
+            <button onclick="reiniciarBusqueda()" class="text-sm text-sky-400 hover:text-sky-300 underline mt-2">Salir / Buscar otra entrada</button>
+        </div>
+    </div>
+
+    <script>
+        function buscarEntrada() {
+            const query = document.getElementById('datoBusqueda').value.trim().toLowerCase();
+            if (!query) return;
+
+            const db = JSON.parse(localStorage.getItem('sys_qr_db')) || { entradas: [] };
+            
+            const entrada = db.entradas.find(e => e.email.toLowerCase() === query || e.documento.toLowerCase() === query);
+
+            if (entrada) {
+                document.getElementById('errorMsg').classList.add('hidden');
+                document.getElementById('searchSection').classList.add('hidden');
+                document.getElementById('ticketSection').classList.remove('hidden');
+
+                document.getElementById('lblNombre').textContent = entrada.nombre;
+                document.getElementById('lblDocumento').textContent = entrada.documento;
+                document.getElementById('lblCodigo').textContent = entrada.codigo;
+                
+                const estadoEl = document.getElementById('lblEstado');
+                if(entrada.estado === 'Valido') {
+                    estadoEl.textContent = '🟢 VÁLIDO PARA INGRESO';
+                    estadoEl.className = 'font-bold text-lg mb-4 py-2 rounded bg-emerald-900/40 text-emerald-400 border border-emerald-500/30';
+                } else {
+                    estadoEl.textContent = '🔴 ENTRADA YA UTILIZADA';
+                    estadoEl.className = 'font-bold text-lg mb-4 py-2 rounded bg-red-900/40 text-red-400 border border-red-500/30';
+                }
+
+                document.getElementById('qrDisplay').innerHTML = ''; 
+                new QRCode(document.getElementById("qrDisplay"), {
+                    text: entrada.codigo,
+                    width: 220,
+                    height: 220,
+                    colorDark : "#0f172a",
+                    colorLight : "#ffffff",
+                    correctLevel : QRCode.CorrectLevel.H
+                });
+            } else {
+                document.getElementById('errorMsg').classList.remove('hidden');
+            }
+        }
+
+        function reiniciarBusqueda() {
+            document.getElementById('ticketSection').classList.add('hidden');
+            document.getElementById('searchSection').classList.remove('hidden');
+            document.getElementById('datoBusqueda').value = '';
+        }
+    </script>
+</body>
+</html>
